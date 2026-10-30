@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+  font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* Custom subtle scrollbars for Main Library */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Pure GPU-composited continuous Portal Unshear, Expand & Dissolve */
+@keyframes portalCenterBloom {
+  0% {
+    transform: translateY(-10px) skewX(-4.5deg) skewY(-2.2deg) rotateZ(-1.2deg) scale(1.045);
+    opacity: 1;
+    filter: brightness(1.14) blur(0px);
+  }
+  38% {
+    transform: translateY(0px) skewX(0deg) skewY(0deg) rotateZ(0deg) scaleX(4.8) scaleY(1.22);
+    opacity: 0.96;
+    filter: brightness(1.08) blur(0px);
+  }
+  100% {
+    transform: translateY(0px) skewX(0deg) skewY(0deg) rotateZ(0deg) scaleX(7.6) scaleY(1.38);
+    opacity: 0;
+    filter: brightness(1.02) blur(14px);
+  }
+}
+
+@keyframes portalInnerImgCounter {
+  0% {
+    transform: skewX(3.15deg) scale(1.16);
+  }
+  35% {
+    transform: skewX(0deg) scale(1.02);
+  }
+  100% {
+    transform: skewX(0deg) scale(1);
+  }
+}
+
+@keyframes portalNeighborExit {
+  0% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(85px) skewX(-4.5deg) scale(0.45);
+    opacity: 0;
+    filter: blur(8px);
+  }
+}
+
+.portal-center-anim {
+  will-change: transform, opacity, filter;
+  animation: portalCenterBloom 560ms cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%) !important;
+  transition: clip-path 240ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.portal-center-img-anim {
+  will-change: transform;
+  animation: portalInnerImgCounter 560ms cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+.portal-neighbor-anim {
+  will-change: transform, opacity, filter;
+  animation: portalNeighborExit 340ms cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+}
