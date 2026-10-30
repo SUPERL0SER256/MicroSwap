@@ -209,6 +209,8 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
   const [shortcutInput, setShortcutInput] = useState<string>(
     settings.globalShortcut
   );
+  const [isRecordingShortcut, setIsRecordingShortcut] =
+    useState<boolean>(false);
   const [newTagInput, setNewTagInput] = useState<string>("");
   const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -397,14 +399,18 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
         setShowFitPopover(false);
         setContextMenu(null);
 
-        // Single continuous GPU keyframe animation (no mid-flight React re-render or layout thrash!)
+        // 1. Start the GPU portal unshear & fade-out animation immediately
         setApplyPhase("portal");
+
+        // 2. Kick off the background OS wallpaper swap mid-bloom so Windows finishes decoding
+        //    right as the portal dissolves, creating a seamless jump with zero dead air
+        await new Promise((resolve) => setTimeout(resolve, 90));
         const applyPromise = applyWallpaper(wp.id, modeToUse);
 
-        // Wait for the 560ms continuous bloom + blur-dissolve keyframe to reach 0% opacity
-        await new Promise((resolve) => setTimeout(resolve, 540));
-        await applyPromise;
+        // 3. Hide the switcher window right as the 260ms portal dissolve completes
+        await new Promise((resolve) => setTimeout(resolve, 170));
         await handleClose();
+        await applyPromise;
         onRefresh();
       } catch (err: any) {
         setApplyPhase("idle");
@@ -558,6 +564,55 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
   // Keyboard navigation & shortcuts inside Carousel
   useEffect(() => {
     const onKeyDown = async (e: KeyboardEvent) => {
+      // Interactive Key-Combo Recorder: just press any shortcut!
+      if (isRecordingShortcut) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (e.key === "Escape") {
+          setIsRecordingShortcut(false);
+          return;
+        }
+
+        // Ignore standalone modifier key presses until a main key is pressed
+        if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) {
+          return;
+        }
+
+        const mods: string[] = [];
+        if (e.ctrlKey) mods.push("Ctrl");
+        if (e.altKey) mods.push("Alt");
+        if (e.shiftKey) mods.push("Shift");
+        if (e.metaKey) mods.push("Super");
+
+        let mainKey = e.key;
+        if (mainKey === " ") mainKey = "Space";
+        else if (mainKey.length === 1) mainKey = mainKey.toUpperCase();
+        else if (mainKey.startsWith("Arrow"))
+          mainKey = mainKey.replace("Arrow", "");
+
+        if (mods.length === 0 && !/^F\d+$/.test(mainKey)) {
+          showToast("Hold a modifier (Alt, Ctrl, or Shift) + a key");
+          return;
+        }
+
+        const combo = [...mods, mainKey].join("+");
+        setShortcutInput(combo);
+        setIsRecordingShortcut(false);
+
+        try {
+          await saveSettings({
+            ...settings,
+            globalShortcut: combo,
+          });
+          onRefresh();
+          showToast(`Hotkey set to ${combo}`);
+        } catch {
+          showToast(`Could not register ${combo}`);
+        }
+        return;
+      }
+
       if (
         document.activeElement &&
         ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)
@@ -637,6 +692,9 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
     showConfigPopover,
     showFitPopover,
     contextMenu,
+    isRecordingShortcut,
+    settings,
+    onRefresh,
   ]);
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -1111,31 +1169,63 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <label className="flex items-center gap-1.5 text-[11px] text-white/70">
-                  <Keyboard className="w-3.5 h-3.5 stroke-[2]" />
-                  Global Summon Hotkey
+                <label className="flex items-center justify-between text-[11px] text-white/70">
+                  <span className="flex items-center gap-1.5">
+                    <Keyboard className="w-3.5 h-3.5 stroke-[2]" />
+                    Global Summon Hotkey
+                  </span>
+                  {isRecordingShortcut && (
+                    <span className="text-[10px] text-white animate-pulse">
+                      Esc to cancel
+                    </span>
+                  )}
                 </label>
-                <div className="flex gap-1.5">
-                  <input
-                    type="text"
-                    value={shortcutInput}
-                    onChange={(e) => setShortcutInput(e.target.value)}
-                    placeholder="e.g. Alt+W"
-                    className="flex-1 px-3 py-1.5 rounded-full bg-[#111114] text-xs font-medium text-white focus:outline-none"
-                  />
-                  <button
-                    onClick={async () => {
-                      await saveSettings({
-                        ...settings,
-                        globalShortcut: shortcutInput.trim() || "Alt+W",
-                      });
-                      onRefresh();
-                      showToast(`Hotkey updated to ${shortcutInput}`);
-                    }}
-                    className="px-3.5 py-1.5 rounded-full bg-[#111114] hover:bg-[#1a1a1f] font-medium transition"
-                  >
-                    Save
-                  </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsRecordingShortcut((prev) => !prev)}
+                  className={`w-full py-2 px-3 rounded-full text-xs font-semibold tracking-wider flex items-center justify-center gap-2 transition-all ${
+                    isRecordingShortcut
+                      ? "bg-white text-black animate-pulse"
+                      : "bg-[#111114] hover:bg-[#1a1a1f] text-white"
+                  }`}
+                >
+                  {isRecordingShortcut
+                    ? "Press any key combo..."
+                    : shortcutInput || settings.globalShortcut}
+                </button>
+
+                {/* Quick 1-click preset pills */}
+                <div className="flex items-center justify-between gap-1 pt-0.5">
+                  {["Alt+W", "Alt+Space", "Ctrl+Shift+W", "Alt+Q"].map(
+                    (preset) => {
+                      const isCurrent =
+                        (shortcutInput || settings.globalShortcut) === preset;
+                      return (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={async () => {
+                            setIsRecordingShortcut(false);
+                            setShortcutInput(preset);
+                            await saveSettings({
+                              ...settings,
+                              globalShortcut: preset,
+                            });
+                            onRefresh();
+                            showToast(`Hotkey set to ${preset}`);
+                          }}
+                          className={`flex-1 py-1 rounded-full text-[10px] font-medium transition ${
+                            isCurrent
+                              ? "bg-white/25 text-white"
+                              : "bg-[#111114] hover:bg-[#1a1a1f] text-white/60 hover:text-white"
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      );
+                    }
+                  )}
                 </div>
               </div>
 

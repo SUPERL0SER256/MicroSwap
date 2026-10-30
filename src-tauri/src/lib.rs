@@ -2,6 +2,7 @@ pub mod db;
 pub mod models;
 pub mod thumbnails;
 pub mod wallpaper_os;
+pub mod wave_physics;
 
 use db::Database;
 use models::{AppSettings, Collection, HistoryEntry, ImportSummary, Wallpaper};
