@@ -18,7 +18,10 @@ use tauri::{
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use thumbnails::{is_supported_image, process_and_thumbnail};
 use walkdir::WalkDir;
-use wallpaper_os::{apply_windows_wallpaper, ensure_windows_startup, get_current_windows_wallpaper};
+use wallpaper_os::{
+    apply_windows_wallpaper, ensure_windows_startup, get_current_windows_wallpaper,
+    terminate_previous_instances,
+};
 
 pub struct AppState {
     pub db: Mutex<Database>,
@@ -577,6 +580,17 @@ pub fn run() {
                 .app_data_dir()
                 .unwrap_or_else(|_| PathBuf::from("."));
             std::fs::create_dir_all(&app_data_dir).ok();
+
+            // Terminate any previously running MicroSwap instance so it never runs multiple times
+            terminate_previous_instances(&app_data_dir);
+
+            // Detect whether this is the very first time MicroSwap has booted on this device
+            let first_boot_flag = app_data_dir.join("first_boot_done.flag");
+            let is_first_boot = !first_boot_flag.exists();
+            if is_first_boot {
+                let _ = std::fs::write(&first_boot_flag, "1");
+            }
+
             let thumbs_dir = app_data_dir.join("thumbnails");
             std::fs::create_dir_all(&thumbs_dir).ok();
             let db_path = app_data_dir.join("microswap.db");
@@ -674,10 +688,16 @@ pub fn run() {
             }
             let _tray = tray_builder.build(app)?;
 
-            // Switcher window starts hidden in the background and hides on focus loss
-            // unless a file/folder picker dialog is currently open
+            // Show the carousel on the very first boot; on subsequent boots stay hidden in the background
+            // until the hotkey or system tray icon is pressed
             if let Some(switcher_win) = app.get_webview_window("switcher") {
-                let _ = switcher_win.hide();
+                if is_first_boot {
+                    let _ = switcher_win.center();
+                    let _ = switcher_win.show();
+                    let _ = switcher_win.set_focus();
+                } else {
+                    let _ = switcher_win.hide();
+                }
 
                 let app_handle = app.handle().clone();
                 switcher_win.on_window_event(move |event| {
@@ -690,7 +710,7 @@ pub fn run() {
                                     return Some(false);
                                 }
                                 let last = st.last_switcher_toggle.lock().ok()?;
-                                Some(last.elapsed() > Duration::from_millis(240))
+                                Some(last.elapsed() > Duration::from_millis(600))
                             })
                             .unwrap_or(true);
 

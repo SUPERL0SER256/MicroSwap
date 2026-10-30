@@ -143,7 +143,7 @@ pub fn ensure_windows_startup() {
     #[cfg(all(windows, not(debug_assertions)))]
     {
         if let Ok(exe_path) = std::env::current_exe() {
-            let quoted = format!("\"{}\"", exe_path.to_string_lossy());
+            let quoted = format!("\"{}\" --autostart", exe_path.to_string_lossy());
             unsafe {
                 let subkey = to_wide_null("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
                 let mut hkey: HKEY = std::ptr::null_mut();
@@ -163,4 +163,42 @@ pub fn ensure_windows_startup() {
             }
         }
     }
+}
+
+/// Terminates any previously running MicroSwap instance before this instance initializes
+/// so multiple copies never run simultaneously and the global hotkey is cleanly claimed.
+pub fn terminate_previous_instances(app_data_dir: &Path) {
+    let current_pid = std::process::id();
+    let pid_file = app_data_dir.join("microswap.pid");
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        // 1. If a previous PID was recorded in microswap.pid, terminate that process tree
+        if let Ok(old_pid_str) = std::fs::read_to_string(&pid_file) {
+            if let Ok(old_pid) = old_pid_str.trim().parse::<u32>() {
+                if old_pid != current_pid {
+                    let _ = std::process::Command::new("taskkill")
+                        .args(["/F", "/PID", &old_pid.to_string(), "/T"])
+                        .creation_flags(CREATE_NO_WINDOW)
+                        .status();
+                }
+            }
+        }
+
+        // 2. Also terminate any other process matching the current executable's filename
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_name) = exe_path.file_name().and_then(|n| n.to_str()) {
+                let filter = format!("PID ne {}", current_pid);
+                let _ = std::process::Command::new("taskkill")
+                    .args(["/F", "/FI", &filter, "/IM", exe_name, "/T"])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .status();
+            }
+        }
+    }
+
+    let _ = std::fs::write(&pid_file, current_pid.to_string());
 }
