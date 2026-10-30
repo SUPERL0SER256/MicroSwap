@@ -674,11 +674,10 @@ pub fn run() {
             }
             let _tray = tray_builder.build(app)?;
 
-            // Switcher window hides on focus loss unless a file/folder picker dialog is currently open
+            // Switcher window starts hidden in the background and hides on focus loss
+            // unless a file/folder picker dialog is currently open
             if let Some(switcher_win) = app.get_webview_window("switcher") {
-                let _ = switcher_win.center();
-                let _ = switcher_win.show();
-                let _ = switcher_win.set_focus();
+                let _ = switcher_win.hide();
 
                 let app_handle = app.handle().clone();
                 switcher_win.on_window_event(move |event| {
@@ -691,7 +690,7 @@ pub fn run() {
                                     return Some(false);
                                 }
                                 let last = st.last_switcher_toggle.lock().ok()?;
-                                Some(last.elapsed() > Duration::from_millis(600))
+                                Some(last.elapsed() > Duration::from_millis(240))
                             })
                             .unwrap_or(true);
 
