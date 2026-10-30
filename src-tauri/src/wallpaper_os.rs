@@ -136,3 +136,31 @@ pub fn apply_windows_wallpaper(file_path: &str, scaling: &str) -> Result<(), Str
 
     Ok(())
 }
+
+/// Automatically registers MicroSwap in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+/// when running as a release executable so it starts up with Windows.
+pub fn ensure_windows_startup() {
+    #[cfg(all(windows, not(debug_assertions)))]
+    {
+        if let Ok(exe_path) = std::env::current_exe() {
+            let quoted = format!("\"{}\"", exe_path.to_string_lossy());
+            unsafe {
+                let subkey = to_wide_null("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
+                let mut hkey: HKEY = std::ptr::null_mut();
+                if RegOpenKeyExW(HKEY_CURRENT_USER, subkey.as_ptr(), 0, KEY_SET_VALUE, &mut hkey) == 0 {
+                    let app_name = to_wide_null("MicroSwap");
+                    let val = to_wide_null(&quoted);
+                    RegSetValueExW(
+                        hkey,
+                        app_name.as_ptr(),
+                        0,
+                        REG_SZ,
+                        val.as_ptr() as *const u8,
+                        (val.len() * 2) as u32,
+                    );
+                    RegCloseKey(hkey);
+                }
+            }
+        }
+    }
+}

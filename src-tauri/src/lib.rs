@@ -18,7 +18,7 @@ use tauri::{
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use thumbnails::{is_supported_image, process_and_thumbnail};
 use walkdir::WalkDir;
-use wallpaper_os::{apply_windows_wallpaper, get_current_windows_wallpaper};
+use wallpaper_os::{apply_windows_wallpaper, ensure_windows_startup, get_current_windows_wallpaper};
 
 pub struct AppState {
     pub db: Mutex<Database>,
@@ -599,9 +599,12 @@ pub fn run() {
                 db: Mutex::new(db),
                 thumbs_dir,
                 app_data_dir,
-                last_switcher_toggle: Mutex::new(Instant::now() - Duration::from_secs(5)),
+                last_switcher_toggle: Mutex::new(Instant::now()),
                 dialog_open: Mutex::new(false),
             });
+
+            // Ensure release build registers itself in Windows Startup and opens cleanly
+            ensure_windows_startup();
 
             // Register global shortcut (default Alt+W)
             let _ = register_switcher_shortcut(app.handle(), &shortcut_str);
@@ -673,6 +676,10 @@ pub fn run() {
 
             // Switcher window hides on focus loss unless a file/folder picker dialog is currently open
             if let Some(switcher_win) = app.get_webview_window("switcher") {
+                let _ = switcher_win.center();
+                let _ = switcher_win.show();
+                let _ = switcher_win.set_focus();
+
                 let app_handle = app.handle().clone();
                 switcher_win.on_window_event(move |event| {
                     if let WindowEvent::Focused(false) = event {
@@ -684,7 +691,7 @@ pub fn run() {
                                     return Some(false);
                                 }
                                 let last = st.last_switcher_toggle.lock().ok()?;
-                                Some(last.elapsed() > Duration::from_millis(240))
+                                Some(last.elapsed() > Duration::from_millis(600))
                             })
                             .unwrap_or(true);
 
