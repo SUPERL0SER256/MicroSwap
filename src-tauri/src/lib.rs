@@ -584,12 +584,9 @@ pub fn run() {
             // Terminate any previously running MicroSwap instance so it never runs multiple times
             terminate_previous_instances(&app_data_dir);
 
-            // Detect whether this is the very first time MicroSwap has booted on this device
-            let first_boot_flag = app_data_dir.join("first_boot_done.flag");
-            let is_first_boot = !first_boot_flag.exists();
-            if is_first_boot {
-                let _ = std::fs::write(&first_boot_flag, "1");
-            }
+            // Detect whether MicroSwap was launched silently by Windows Startup (--autostart)
+            // vs. explicitly opened by the user clicking the application shortcut / executable
+            let is_autostart = std::env::args().any(|arg| arg == "--autostart" || arg == "--background");
 
             let thumbs_dir = app_data_dir.join("thumbnails");
             std::fs::create_dir_all(&thumbs_dir).ok();
@@ -688,10 +685,10 @@ pub fn run() {
             }
             let _tray = tray_builder.build(app)?;
 
-            // Show the carousel on the very first boot; on subsequent boots stay hidden in the background
-            // until the hotkey or system tray icon is pressed
+            // Show the carousel whenever the user opens the application shortcut / executable directly;
+            // only stay hidden in the background when launched automatically on Windows boot (--autostart)
             if let Some(switcher_win) = app.get_webview_window("switcher") {
-                if is_first_boot {
+                if !is_autostart {
                     let _ = switcher_win.center();
                     let _ = switcher_win.show();
                     let _ = switcher_win.set_focus();
