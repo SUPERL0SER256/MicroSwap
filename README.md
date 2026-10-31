@@ -1,8 +1,11 @@
 <div align="center">
-  <img src="public/icon.svg" alt="MicroSwap Logo" width="96" height="96" />
+  <img src="public/icon.svg" alt="MicroSwap Logo" width="88" height="88" />
   <h1>MicroSwap</h1>
-  <p>Change your desktop wallpaper as easily as skipping a song.</p>
+  <p><strong>Change your desktop wallpaper as easily as skipping a song.</strong></p>
+  <br />
+  <img src="assets/screenshot.png" alt="MicroSwap Floating Wave Carousel" width="100%" />
 </div>
+<br />
 
 ## What is MicroSwap?
 
